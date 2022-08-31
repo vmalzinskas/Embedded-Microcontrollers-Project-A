@@ -1,54 +1,112 @@
-//This is Group 50 Project A
-#include "EEPROM.h" // This needed to work with the onboard EEPROM.
+// Group 50 Project A
+#include "Vincent.h"
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <Wire.h>
+#include "U8glib.h"
+
+U8GLIB_SSD1306_128X64 u8g; // initializing the OLED screen
 
 //Global variables
 char Password[8]{"EEE20003"}; //The password string
+float * AccVec();
+float * Vadd{};
+float forceVec[3]{};
+bool pass{false};
 
-//Prototypes
-void WritePassword(char *);
-void ReadPassword(); // Read is mostly for debugging 
-bool CheckPassword(char *);
+void setup() 
+{
+  Serial.begin(115200);
+  u8g.setFont(u8g_font_tpss); //setting the text font
+  u8g.setColorIndex(1); // setting colour to white
 
-void setup() {
-  // put your setup code here, to run once:
-  Serial.begin(9600);
   WritePassword(Password); // Password should only need to be written the first time the board is programmed, I haven't tried to test this in the simulation.
-  //ReadPassword();
-  Serial.println(CheckPassword("EEE20003")); //Prints to console a 1 or zero if the argument matches/(or not) to the saved data in the first 8bytes of EEEPROM memory.
+  
+  while(!pass)
+  {
+  pass = LogOn(u8g);
+  } 
+
+
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
 
-}
-
-///////////
-//Functions
-///////////
-
-void WritePassword(char *pw) // password needs to be passed in as a pointer
-{
-	for(int i=0;i<8;i++) //write 8 bytes from *pw (password) to the EEEPROM
-	{
-	EEPROM.write(i,*(pw+i)); //The first argument is the byte on the EEEPROM that is being written to (Address 0-1020 I think), second argument is the password char being written.
-	}
-}
-
-void ReadPassword() // for debugging
-{
-  char password[8]{};
-  	for(int i=0;i<8;i++) //write 8 bytes from *pw (password) to the EEEPROM
-	{
-	  password[i]=EEPROM.read(0+i);
-	}
-  Serial.print(password); // We can print to the screen the password saved in the EEEPROM so we can manually check it is correct.
-}
-bool CheckPassword(char *pw) // Check if password is true
-{
-    char password[8]{};
-  	for(int i=0;i<8;i++) //write 8 bytes from *pw (password) to the EEEPROM
-    {
-      if(*(pw+i)!=EEPROM.read(0+i)) return false; // if all bytes match then it will exit this if and return true, if bytes don't match false is returned.
+Vadd=AccVec();
+forceVec[0]=*Vadd;
+forceVec[1]=*(Vadd+1);
+forceVec[2]=*(Vadd+2);
+/*
+Serial.print("x= "); 
+Serial.println(*Vadd);
+Serial.print("y= ");
+Serial.println(forceVec[1]);
+Serial.print("z= ");
+Serial.println(forceVec[2]);
+*/
+  u8g.firstPage();  
+  do {
+    //changing screen colour if ACC is too high (possible fall) doesnt work
+    if(abs(forceVec[0]) > 19 || abs(forceVec[1]) > 19 || abs(forceVec[2]) > 19 ){
+      u8g.setColorIndex(3);
     }
-    return true;
+    else{
+      u8g.setColorIndex(1);
+    }
+    
+    u8g.drawFrame(64, 0, 64, 64);
+    u8g.drawStr(0, 10, "X =");
+    String strX = String(*Vadd);
+    char charX[7];
+    strX.toCharArray(charX, 7);
+    u8g.drawStr(30, 10, charX);
+
+    u8g.drawStr(0,38, "Y =");
+    String strY = String(*(Vadd+1));
+    char charY[7];
+    strY.toCharArray(charY, 7);
+    u8g.drawStr(30, 38, charY);
+
+    u8g.drawStr(0, 64, "Z =");
+    String strZ = String(*(Vadd+2));
+    char charZ[7];
+    strZ.toCharArray(charZ, 7);
+    u8g.drawStr(30, 64, charZ);
+    
+    u8g.drawDisc(96 + forceVec[0] * 0.8, 32 + forceVec[1] * 0.8, (22 + forceVec[2]) * 0.3);
+
+    
+
+  } while( u8g.nextPage() );
+
 }
+
+////////////////////////////
+float * AccVec()
+{
+  Adafruit_MPU6050 gyro;
+  while (!gyro.begin()) {
+    Serial.println("MPU6050 not connected!");
+    delay(1000);
+  }
+  sensors_event_t event;
+
+  float vector[3]{};
+  float * vecPt{vector};
+
+  gyro.getAccelerometerSensor()->getEvent(&event);
+
+  vector[0]=static_cast<float>(event.acceleration.x);
+  vector[1]=static_cast<float>(event.acceleration.y);
+  vector[2]=static_cast<float>(event.acceleration.z);
+
+
+  return vecPt;
+  
+}
+
+
+///////////////////////////
+
+
+
